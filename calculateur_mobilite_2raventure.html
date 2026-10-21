@@ -2996,39 +2996,57 @@
         };
         return map[f] || "données invalides";
       }
-      function sendBrevo() {
+      var brevoSending = false;
+      function sendBrevo(done) {
+        done = done || function () { };
         var aom = document.getElementById("cb_aom").checked;
         var nl = document.getElementById("cb_nl").checked;
-        if (!aom && !nl) return;
+        if (!aom && !nl) return done(true);
         var email = fv("c_email");
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          brevoToast("err", "Coordonnées non envoyées : renseignez un email valide à l'étape « Contact ».");
-          return;
+          brevoToast("err", "Coordonnées non envoyées : renseignez un email valide ci-dessus.");
+          return done(false);
         }
         var sig = email + "|" + aom + "|" + nl + "|" + fv("c_tel");
-        if (sig === lastBrevoSig || !BREVO.URL) return;
+        if (sig === lastBrevoSig || !BREVO.URL) return done(true);
+        if (brevoSending) return done(false);
+        brevoSending = true;
+        brevoToast("ok", "Envoi de vos coordonnées…");
         var fd = brevoFormData();
         if (aom) fd.append(BREVO.F.consentAom, "1");
         if (nl) fd.append(BREVO.F.consentNl, "1");
+        var timer = setTimeout(function () {
+          if (brevoSending) {
+            brevoSending = false;
+            brevoToast("err", "L'envoi de vos coordonnées a échoué : délai dépassé.");
+            done(false);
+          }
+        }, 15000);
         try {
           fetch(BREVO.URL, { method: "POST", body: fd })
             .then(function (r) { return r.json().catch(function () { return {}; }); })
             .then(function (res) {
+              clearTimeout(timer);
+              brevoSending = false;
               if (res && res.success) {
                 lastBrevoSig = sig;
                 brevoToast("ok", "Vos coordonnées ont bien été envoyées.");
+                done(true);
               } else {
                 brevoToast("err", "L'envoi de vos coordonnées a échoué : " + brevoErrMsg(res && res.errors) + ".");
+                done(false);
               }
             })
             .catch(function () {
+              clearTimeout(timer);
+              brevoSending = false;
               brevoToast("err", "L'envoi de vos coordonnées a échoué : vérifiez votre connexion.");
+              done(false);
             });
-        } catch (e) { }
+        } catch (e) { clearTimeout(timer); brevoSending = false; done(false); }
       }
 
-      function goTo(n) {
-        if (n === 6) sendBrevo();
+      function navTo(n) {
         document.getElementById("sc" + cur).classList.remove("active");
         document.getElementById("sb" + cur).classList.remove("active");
         if (n > cur) document.getElementById("sb" + cur).classList.add("done");
@@ -3037,6 +3055,11 @@
         document.getElementById("sb" + n).classList.add("active");
         document.querySelectorAll(".pb").forEach(function (b) { b.style.width = PCTS[n] + "%"; });
         window.scrollTo(0, 0); calc();
+      }
+      function goTo(n) {
+        if (n === 6 && cur === 5) { sendBrevo(function (ok) { if (ok) navTo(6); }); return; }
+        if (n === 6 && fv("c_email")) sendBrevo();
+        navTo(n);
       }
       function showTab(n) {
         document.querySelectorAll(".tab-btn").forEach(function (b, i) { b.classList.toggle("active", i === n); });
