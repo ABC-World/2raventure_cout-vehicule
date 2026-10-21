@@ -1477,6 +1477,40 @@
           justify-content: center
         }
       }
+
+      #brevo_toast {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%) translateY(140%);
+        background: var(--v);
+        color: #fff;
+        padding: 12px 18px;
+        border-radius: 10px;
+        font-size: .82rem;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, .25);
+        transition: transform .3s, opacity .3s;
+        z-index: 200;
+        max-width: 90%;
+        opacity: 0;
+        pointer-events: none
+      }
+
+      #brevo_toast.show {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+        pointer-events: auto
+      }
+
+      #brevo_toast.err {
+        background: #c0392b
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #brevo_toast {
+          transition: none
+        }
+      }
     </style>
   </head>
 
@@ -2944,20 +2978,53 @@
         fd.append("locale", "en");
         return fd;
       }
+      function brevoToast(type, msg) {
+        var t = document.getElementById("brevo_toast");
+        if (!t) return;
+        clearTimeout(t._timer);
+        t.textContent = msg;
+        t.className = "show " + type;
+        t._timer = setTimeout(function () { t.className = ""; }, type === "err" ? 12000 : 6000);
+      }
+      function brevoErrMsg(errs) {
+        var f = errs ? Object.keys(errs)[0] : "";
+        var map = {
+          EMAIL: "adresse email invalide",
+          SMS: "numéro de téléphone invalide ou déjà associé à un autre contact",
+          PRENOM: "prénom manquant",
+          NOM: "nom manquant"
+        };
+        return map[f] || "données invalides";
+      }
       function sendBrevo() {
         var aom = document.getElementById("cb_aom").checked;
         var nl = document.getElementById("cb_nl").checked;
         if (!aom && !nl) return;
         var email = fv("c_email");
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
-        var sig = email + "|" + aom + "|" + nl;
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          brevoToast("err", "Coordonnées non envoyées : renseignez un email valide à l'étape « Contact ».");
+          return;
+        }
+        var sig = email + "|" + aom + "|" + nl + "|" + fv("c_tel");
         if (sig === lastBrevoSig || !BREVO.URL) return;
-        lastBrevoSig = sig;
         var fd = brevoFormData();
         if (aom) fd.append(BREVO.F.consentAom, "1");
         if (nl) fd.append(BREVO.F.consentNl, "1");
-        try { fetch(BREVO.URL, { method: "POST", mode: "no-cors", body: fd }).catch(function () { }); }
-        catch (e) { }
+        try {
+          fetch(BREVO.URL, { method: "POST", body: fd })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (res) {
+              if (res && res.success) {
+                lastBrevoSig = sig;
+                brevoToast("ok", "Vos coordonnées ont bien été envoyées.");
+              } else {
+                brevoToast("err", "L'envoi de vos coordonnées a échoué : " + brevoErrMsg(res && res.errors) + ".");
+              }
+            })
+            .catch(function () {
+              brevoToast("err", "L'envoi de vos coordonnées a échoué : vérifiez votre connexion.");
+            });
+        } catch (e) { }
       }
 
       function goTo(n) {
@@ -3078,6 +3145,8 @@
         </div>
       </div>
     </footer>
+
+    <div id="brevo_toast" role="status" aria-live="polite"></div>
 
   </body>
 
