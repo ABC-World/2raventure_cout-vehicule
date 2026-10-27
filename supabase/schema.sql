@@ -29,6 +29,12 @@ create index if not exists calmob_snapshots_email_idx   on public.calmob_snapsho
 
 alter table public.calmob_snapshots enable row level security;
 
+-- Privilèges table pour le rôle anon (les tables créées via SQL Editor ne
+-- reçoivent pas les grants par défaut de l'API). SELECT est requis par
+-- l'upsert PostgREST — sans policy SELECT, RLS renvoie toujours 0 ligne.
+grant select, insert, update on public.calmob_snapshots to anon;
+grant usage on sequence public.calmob_snapshots_id_seq to anon;
+
 -- Le rôle anon peut écrire (upsert via resolution=merge-duplicates)…
 create policy calmob_insert on public.calmob_snapshots
   for insert to anon
