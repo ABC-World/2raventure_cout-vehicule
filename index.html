@@ -3064,17 +3064,19 @@
       }
 
       // ─── STORE — snapshot complet (étapes 1–6) vers Supabase ──────────────────
-      // Une ligne par envoi (append-only), à chaque arrivée sur le Bilan si au
-      // moins un consentement de l'étape 5 est coché et que le snapshot a changé.
+      // Une ligne par envoi (append-only), à chaque arrivée sur le Bilan si le
+      // snapshot a changé. Les coordonnées (PII) ne sont incluses que si au
+      // moins un consentement de l'étape 5 est coché — sinon ligne anonyme.
       // Silencieux : n'affiche rien et ne bloque jamais la navigation.
       function storePayload() {
+        var consent = document.getElementById("cb_aom").checked || document.getElementById("cb_nl").checked;
         var eco = ECO_ITEMS.map(function (item) {
           var v = curV(item); var s = item.saving(v); var c = item.cost(v);
           return { id: item.id, name: item.name, value: v, saving: Math.round(s), cost: Math.round(c), net: Math.round(s - c) };
         });
         return {
           session_id: storeSessionId,
-          email: fv("c_email") || null,
+          email: consent ? fv("c_email") || null : null,
           code_postal: cp_val || null,
           aom: cp_aom ? cp_aom.name : null,
           secteur: secteur,
@@ -3085,10 +3087,10 @@
           payload: {
             v: 1,
             ts: new Date().toISOString(),
-            contact: {
+            contact: consent ? {
               prenom: fv("c_prenom"), nom: fv("c_nom"), structure: fv("c_struct"),
               role: fv("c_role"), email: fv("c_email"), tel: fv("c_tel")
-            },
+            } : null,
             geo: {
               code_postal: cp_val,
               ville: cp_aom ? cp_aom.ville : null,
@@ -3121,9 +3123,9 @@
       var storeSending = false;
       function sendStore() {
         if (!STORE.URL || !STORE.KEY) return;
-        if (!document.getElementById("cb_aom").checked && !document.getElementById("cb_nl").checked) return;
         var row = storePayload();
-        var sig = storeSessionId + "|" + JSON.stringify(row.payload);
+        var p = row.payload;
+        var sig = storeSessionId + "|" + JSON.stringify([p.contact, p.geo, p.inputs, p.results, p.eco, p.meta]);
         if (sig === lastStoreSig || storeSending) return;
         storeSending = true;
         lastStoreSig = sig;
@@ -3138,7 +3140,7 @@
             "Prefer": "return=minimal"
           },
           body: JSON.stringify([row])
-        }).catch(function (e) { console.warn("CalMob store:", e); })
+        }).catch(function (e) { console.warn("CalMob store:", e); lastStoreSig = ""; })
           .then(function () { storeSending = false; });
       }
 

@@ -27,12 +27,12 @@ Older single-purpose widgets kept for reference — no longer maintained.
 - Brand palette: dark teal `#004A4F` / teal `#3ECDC5` on cream `#FBF7F3`, Asap font (Google Fonts).
 - All content is in French; cost figures are in EUR with `fr-FR` formatting.
 - **Brevo capture** (main tool): step-5 contact info is POSTed to a Brevo subscription-form endpoint (`BREVO.URL` in the file) when at least one consent box is checked; `CONSENT_AOM` / `CONSENT_NL` flag attributes record which. Unchecked boxes or invalid email = nothing sent.
-- **Snapshot store** (main tool): on reaching the Bilan step, a full session snapshot (contact, all inputs, computed results, action-plan selections) is upserted to Supabase — see [Data store](#data-store-supabase). Same consent gate as Brevo; silent, never blocks navigation.
+- **Snapshot store** (main tool): on reaching the Bilan step, a full session snapshot (all inputs, computed results, action-plan selections) is appended to Supabase — see [Data store](#data-store-supabase). Contact fields (PII) are only included when at least one consent box is checked; otherwise the row is anonymous. Silent, never blocks navigation.
 - Git history is maintained via GitHub web uploads ("Update/Add files via upload") — commits are coarse-grained per file.
 
 ## Data store (Supabase)
 
-Each session that reaches the Bilan step with at least one consent box checked is stored in `calmob_snapshots` — a cold store for later analysis (SQL, exports, BI tools). Rows are **append-only**: one row per send, `session_id` groups snapshots from the same browser session (take the latest `created_at` per session for the current state). Identical repeat visits are deduplicated client-side.
+Every session that reaches the Bilan step is stored in `calmob_snapshots` — a cold store for later analysis (SQL, exports, BI tools). Rows are **append-only**: one row per send, `session_id` groups snapshots from the same browser session (take the latest `created_at` per session for the current state). Identical repeat visits are deduplicated client-side. Contact fields (`payload.contact`, `email` column) are only populated when at least one step-5 consent box is checked — `consent_aom`/`consent_nl` flag which.
 
 Row shape: a few queryable columns (`email`, `code_postal`, `aom`, `secteur`, `nb_sal`, `grand_total`, `consent_*`, timestamps) plus a `payload` jsonb column holding the complete snapshot — `contact`, `geo`, `inputs`, `results`, `eco`, `meta`.
 
