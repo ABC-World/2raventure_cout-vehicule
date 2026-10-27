@@ -32,7 +32,7 @@ Older single-purpose widgets kept for reference — no longer maintained.
 
 ## Data store (Supabase)
 
-Each session that reaches the Bilan step with at least one consent box checked is stored as one row in `calmob_snapshots` — a cold store for later analysis (SQL, exports, BI tools). Identical repeat visits are deduplicated; a changed snapshot updates the same `session_id` row (PostgREST upsert).
+Each session that reaches the Bilan step with at least one consent box checked is stored in `calmob_snapshots` — a cold store for later analysis (SQL, exports, BI tools). Rows are **append-only**: one row per send, `session_id` groups snapshots from the same browser session (take the latest `created_at` per session for the current state). Identical repeat visits are deduplicated client-side.
 
 Row shape: a few queryable columns (`email`, `code_postal`, `aom`, `secteur`, `nb_sal`, `grand_total`, `consent_*`, timestamps) plus a `payload` jsonb column holding the complete snapshot — `contact`, `geo`, `inputs`, `results`, `eco`, `meta`.
 
@@ -45,9 +45,9 @@ Row shape: a few queryable columns (`email`, `code_postal`, `aom`, `secteur`, `n
 
 ### Security notes
 
-- The `anon` key is public by design; RLS policies grant it **INSERT + UPDATE only — no SELECT**, so nobody can read the table with the key embedded in the widget.
-- Reads require the `service_role` key or the SQL Editor (dashboard) — keep the service key out of the repo and the widget.
-- Endpoint is publicly writable (same exposure as the Brevo form URL): junk inserts are possible. `session_id` is a random UUID per page load, so forged updates can't target existing rows.
+- The `publishable` key is public by design; grants + RLS give it **INSERT only — no SELECT/UPDATE**, so nobody can read or modify the table with the key embedded in the widget.
+- Reads require the `service_role`/`secret` key or the SQL Editor (dashboard) — keep the secret key out of the repo and the widget.
+- Endpoint is publicly writable (same exposure as the Brevo form URL): junk inserts are possible. Rows can't be read back or altered, and `session_id` is a random UUID per page load.
 
 ### Querying
 
@@ -57,6 +57,11 @@ select created_at, email, code_postal, aom, secteur, nb_sal, grand_total
 from public.calmob_snapshots
 order by created_at desc;
 
+-- latest snapshot per session
+select distinct on (session_id) *
+from public.calmob_snapshots
+order by session_id, created_at desc;
+
 -- anything else lives in payload, e.g. average fleet size
 select avg((payload->'inputs'->>'nb_veh')::numeric)
 from public.calmob_snapshots;
@@ -65,13 +70,13 @@ from public.calmob_snapshots;
 ### Manual test
 
 ```bash
-curl -X POST "https://<project-ref>.supabase.co/rest/v1/calmob_snapshots?on_conflict=session_id" \
-  -H "apikey: <anon-key>" \
-  -H "Authorization: Bearer <anon-key>" \
+curl -X POST "https://<project-ref>.supabase.co/rest/v1/calmob_snapshots" \
+  -H "apikey: <publishable-key>" \
+  -H "Authorization: Bearer <publishable-key>" \
   -H "Content-Type: application/json" \
-  -H "Prefer: resolution=merge-duplicates" \
+  -H "Prefer: return=minimal" \
   -d '[{"session_id": "'"$(uuidgen)"'", "consent_aom": true, "payload": {"v":1}}]'
-# → 201. A GET on the same URL with the anon key returns 401/403 (write-only).
+# → 201. A GET on the same URL returns 401 (write-only).
 ```
 
 ## Usage

@@ -3064,8 +3064,8 @@
       }
 
       // ─── STORE — snapshot complet (étapes 1–6) vers Supabase ──────────────────
-      // Une ligne par session (upsert sur session_id), envoyée à chaque arrivée
-      // sur le Bilan si au moins un consentement de l'étape 5 est coché.
+      // Une ligne par envoi (append-only), à chaque arrivée sur le Bilan si au
+      // moins un consentement de l'étape 5 est coché et que le snapshot a changé.
       // Silencieux : n'affiche rien et ne bloque jamais la navigation.
       function storePayload() {
         var eco = ECO_ITEMS.map(function (item) {
@@ -3128,14 +3128,14 @@
         storeSending = true;
         lastStoreSig = sig;
         setTimeout(function () { storeSending = false; }, 15000);
-        fetch(STORE.URL + "/rest/v1/" + STORE.TABLE + "?on_conflict=session_id", {
+        fetch(STORE.URL + "/rest/v1/" + STORE.TABLE, {
           method: "POST",
           keepalive: true,
           headers: {
             "apikey": STORE.KEY,
             "Authorization": "Bearer " + STORE.KEY,
             "Content-Type": "application/json",
-            "Prefer": "resolution=merge-duplicates"
+            "Prefer": "return=minimal"
           },
           body: JSON.stringify([row])
         }).catch(function (e) { console.warn("CalMob store:", e); })
