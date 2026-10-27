@@ -36,10 +36,12 @@ grant select, insert, update on public.calmob_snapshots to anon;
 grant usage on sequence public.calmob_snapshots_id_seq to anon;
 
 -- Le rôle anon peut écrire (upsert via resolution=merge-duplicates)…
+drop policy if exists calmob_insert on public.calmob_snapshots;
 create policy calmob_insert on public.calmob_snapshots
   for insert to anon
   with check (true);
 
+drop policy if exists calmob_update on public.calmob_snapshots;
 create policy calmob_update on public.calmob_snapshots
   for update to anon
   using (true)
