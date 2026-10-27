@@ -2967,6 +2967,7 @@
 
       // ─── NAVIGATION ───────────────────────────────────────────────────────────
       var cur = 0; var PCTS = [0, 17, 28, 45, 62, 79, 100];
+      var bilanReached = false; // le Bilan n'est accessible qu'après l'étape 5
 
       // ─── BREVO — envoi des coordonnées (étape 5) ──────────────────────────────
       function fv(id) { var e = document.getElementById(id); return e ? e.value.trim() : ""; }
@@ -3153,10 +3154,11 @@
         document.getElementById("sb" + n).classList.add("active");
         document.querySelectorAll(".pb").forEach(function (b) { b.style.width = PCTS[n] + "%"; });
         window.scrollTo(0, 0); calc();
-        if (n === 6) sendStore();
+        if (n === 6) { bilanReached = true; sendStore(); }
       }
       function goTo(n) {
         if (n === 6 && cur === 5) { sendBrevo(function (ok) { if (ok) navTo(6); }); return; }
+        if (n === 6 && !bilanReached) { navTo(5); return; }
         if (n === 6 && fv("c_email")) sendBrevo();
         navTo(n);
       }
